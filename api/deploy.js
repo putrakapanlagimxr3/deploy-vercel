@@ -82,48 +82,78 @@ module.exports = async (req, res) => {
         }
 
         // Deploy via Vercel API
-        const token = process.env.VERCEL_TOKEN;
-        if (!token) {
-            return res.status(500).json({ error: 'Token Vercel tidak ditemukan' });
-        }
+const token = process.env.VERCEL_TOKEN;
+if (!token) {
+    return res.status(500).json({ error: 'Token Vercel tidak ditemukan' });
+}
 
-        // 1. Buat deployment
-        const deploymentResponse = await axios.post(
-            'https://api.vercel.com/v13/deployments',
-            {
-                name: name,
-                files: files.map(f => ({
-                    file: f.filepath,
-                    data: f.content
-                })),
-                projectSettings: {},
-                target: 'production'
+// Format files untuk Vercel API
+const vercelFiles = files.map(f => ({
+    file: f.filepath,
+    data: Buffer.from(f.content).toString('base64')
+}));
+
+try {
+    // OPTION 1: Pakai framework detection
+    const deploymentResponse = await axios.post(
+        'https://api.vercel.com/v13/deployments?skipAutoDetectionConfirmation=1',
+        {
+            name: name,
+            files: vercelFiles,
+            projectSettings: {
+                framework: null,  // biarkan auto detect
+                buildCommand: null,
+                outputDirectory: null,
+                installCommand: null
             },
-            {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
+            target: 'production'
+        },
+        {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
             }
-        );
+        }
+    );
 
-        // 2. Update quota
+    // Update quota
+    quotaInfo.remaining--;
+    quotaInfo.lastDeployment = Date.now();
+    quotaInfo.cooldownUntil = Date.now() + (5 * 60 * 1000);
+    saveQuotaInfo(clientId, quotaInfo);
+
+    // Return URL
+    const deployment = deploymentResponse.data;
+    const url = deployment.url 
+        ? `https://${deployment.url}` 
+        : `https://${name}.vercel.app`;
+    
+    return res.status(200).json({
+        success: true,
+        url: url,
+        deploymentId: deployment.id,
+        remainingQuota: quotaInfo.remaining
+    });
+
+} catch (error) {
+    console.error('Vercel API Error:', error.response?.data || error.message);
+    
+    // Update quota jika error karena nama sudah dipakai
+    if (error.response?.data?.error?.code === 'name_already_exists' || 
+        error.response?.data?.error?.message?.toLowerCase().includes('already exists')) {
         quotaInfo.remaining--;
-        quotaInfo.lastDeployment = Date.now();
-        quotaInfo.cooldownUntil = Date.now() + (5 * 60 * 1000);
         saveQuotaInfo(clientId, quotaInfo);
-
-        // 3. Return URL
-        const deployment = deploymentResponse.data;
-        const url = `https://${deployment.url || `${name}.vercel.app`}`;
         
-        return res.status(200).json({
-            success: true,
-            url: url,
-            deploymentId: deployment.id,
+        return res.status(400).json({
+            error: 'Nama sudah digunakan, coba nama lain',
             remainingQuota: quotaInfo.remaining
         });
-
+    }
+    
+    return res.status(500).json({ 
+        error: error.response?.data?.error?.message || 'Deployment gagal' 
+    });
+}
     } catch (error) {
         console.error('Error:', error.response?.data || error.message);
         
