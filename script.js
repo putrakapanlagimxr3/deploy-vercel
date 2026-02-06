@@ -190,7 +190,7 @@ function readFileAsBase64(file) {
             };
             
             reader.onerror = reject;
-            reader.readAsDataURL(file);
+            reader.readAsText(file, 'UTF-8');
         }
     });
 }
