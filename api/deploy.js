@@ -54,7 +54,7 @@ module.exports = async (req, res) => {
             return res.status(429).json({ error: 'Quota habis', remainingQuota: 0 });
         }
 
-        // Proses file
+        // Proses file - PERBAIKAN DISINI
         const buffer = Buffer.from(fileData, 'base64');
         let files = [];
 
@@ -63,9 +63,11 @@ module.exports = async (req, res) => {
             const zipEntries = zip.getEntries();
             for (const entry of zipEntries) {
                 if (!entry.isDirectory && isSafeFile(entry.entryName)) {
+                    // Encode file dari ZIP ke base64
+                    const fileBuffer = entry.getData();
                     files.push({
                         filepath: entry.entryName,
-                        content: entry.getData().toString('utf-8')
+                        content: fileBuffer.toString('base64')  // <-- Base64
                     });
                 }
             }
@@ -73,114 +75,97 @@ module.exports = async (req, res) => {
                 return res.status(400).json({ error: 'ZIP harus ada index.html' });
             }
         } else if (fileName.toLowerCase().endsWith('.html')) {
+            // File HTML sudah base64 dari frontend
             files.push({
                 filepath: 'index.html',
-                content: buffer.toString('utf-8')
+                content: fileData  // <-- Langsung pakai fileData
             });
         } else {
             return res.status(400).json({ error: 'Hanya file .html atau .zip' });
         }
 
         // Deploy via Vercel API
-const token = process.env.VERCEL_TOKEN;
-if (!token) {
-    return res.status(500).json({ error: 'Token Vercel tidak ditemukan' });
-}
-
-// Format files untuk Vercel API
-const vercelFiles = files.map(f => ({
-    file: f.filepath,
-    data: Buffer.from(f.content).toString('base64')
-}));
-
-try {
-    // OPTION 1: Pakai framework detection
-    const deploymentResponse = await axios.post(
-        'https://api.vercel.com/v13/deployments?skipAutoDetectionConfirmation=1',
-        {
-            name: name,
-            files: vercelFiles,
-            projectSettings: {
-                framework: null,  // biarkan auto detect
-                buildCommand: null,
-                outputDirectory: null,
-                installCommand: null
-            },
-            target: 'production'
-        },
-        {
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            }
+        const token = process.env.VERCEL_TOKEN;
+        if (!token) {
+            return res.status(500).json({ error: 'Token Vercel tidak ditemukan' });
         }
-    );
 
-    // Update quota
-    quotaInfo.remaining--;
-    quotaInfo.lastDeployment = Date.now();
-    quotaInfo.cooldownUntil = Date.now() + (5 * 60 * 1000);
-    saveQuotaInfo(clientId, quotaInfo);
+        // Format files untuk Vercel API - PERBAIKAN DISINI
+        const vercelFiles = files.map(f => ({
+            file: f.filepath,
+            data: f.content  // <-- Sudah base64
+        }));
 
-    // Return URL
-    const deployment = deploymentResponse.data;
-    const url = deployment.url 
-        ? `https://${deployment.url}` 
-        : `https://${name}.vercel.app`;
-    
-    return res.status(200).json({
-        success: true,
-        url: url,
-        deploymentId: deployment.id,
-        remainingQuota: quotaInfo.remaining
-    });
+        try {
+            const deploymentResponse = await axios.post(
+                'https://api.vercel.com/v13/deployments?skipAutoDetectionConfirmation=1',
+                {
+                    name: name,
+                    files: vercelFiles,
+                    projectSettings: {
+                        framework: null,
+                        buildCommand: null,
+                        outputDirectory: null,
+                        installCommand: null
+                    },
+                    target: 'production'
+                },
+                {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                }
+            );
 
-} catch (error) {
-    console.error('Vercel API Error:', error.response?.data || error.message);
-    
-    // Update quota jika error karena nama sudah dipakai
-    if (error.response?.data?.error?.code === 'name_already_exists' || 
-        error.response?.data?.error?.message?.toLowerCase().includes('already exists')) {
-        quotaInfo.remaining--;
-        saveQuotaInfo(clientId, quotaInfo);
-        
-        return res.status(400).json({
-            error: 'Nama sudah digunakan, coba nama lain',
-            remainingQuota: quotaInfo.remaining
-        });
-    }
-    
-    return res.status(500).json({ 
-        error: error.response?.data?.error?.message || 'Deployment gagal' 
-    });
-}
-    } catch (error) {
-        console.error('Error:', error.response?.data || error.message);
-        
-        // Update quota jika error karena nama sudah dipakai
-        if (req.body.name && req.body.name !== 'quota-check') {
-            const clientId = getClientId(req);
-            const quotaInfo = getQuotaInfo(clientId);
+            // Update quota
+            quotaInfo.remaining--;
+            quotaInfo.lastDeployment = Date.now();
+            quotaInfo.cooldownUntil = Date.now() + (5 * 60 * 1000);
+            saveQuotaInfo(clientId, quotaInfo);
+
+            // Return URL
+            const deployment = deploymentResponse.data;
+            const url = deployment.url 
+                ? `https://${deployment.url}` 
+                : `https://${name}.vercel.app`;
             
+            return res.status(200).json({
+                success: true,
+                url: url,
+                deploymentId: deployment.id,
+                remainingQuota: quotaInfo.remaining
+            });
+
+        } catch (error) {
+            console.error('Vercel API Error:', error.response?.data || error.message);
+            
+            // Update quota jika error karena nama sudah dipakai
             if (error.response?.data?.error?.code === 'name_already_exists' || 
-                error.response?.data?.error?.message?.includes('already exists')) {
+                error.response?.data?.error?.message?.toLowerCase().includes('already exists')) {
                 quotaInfo.remaining--;
                 saveQuotaInfo(clientId, quotaInfo);
                 
                 return res.status(400).json({
-                    error: 'Nama sudah digunakan',
+                    error: 'Nama sudah digunakan, coba nama lain',
                     remainingQuota: quotaInfo.remaining
                 });
             }
+            
+            return res.status(500).json({ 
+                error: error.response?.data?.error?.message || 'Deployment gagal' 
+            });
         }
-        
+
+    } catch (error) {
+        console.error('General error:', error);
         return res.status(500).json({ 
-            error: error.response?.data?.error?.message || 'Deployment gagal' 
+            error: 'Terjadi kesalahan server: ' + error.message 
         });
     }
 };
 
-// Helper functions (sama seperti sebelumnya)
+// Helper functions (sama)
 function getClientId(req) {
     const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress || 'unknown';
     const userAgent = req.headers['user-agent'] || '';
