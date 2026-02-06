@@ -13,12 +13,16 @@ const quotaText = document.getElementById('quotaText');
 let selectedFile = null;
 let cooldownTimer = null;
 
+// API URL (ganti dengan URL API-mu)
+const API_URL = 'https://web-deploy-backend.vercel.app/api/deploy';
+// atau jika di domain yang sama: const API_URL = '/api/deploy';
+
 // Check quota on load
 checkQuota();
 
 async function checkQuota() {
     try {
-        const response = await fetch('/api/deploy', {
+        const response = await fetch(API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
@@ -88,13 +92,16 @@ fileUpload.addEventListener('change', (e) => {
         fileName.textContent = file.name;
         
         // Validate file type
-        const validExtensions = ['.html', '.zip'];
-        const isValid = validExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
+        const validExtensions = ['.html', '.htm', '.zip'];
+        const isValid = validExtensions.some(ext => 
+            file.name.toLowerCase().endsWith(ext)
+        );
         
         if (!isValid) {
-            showStatus('error', 'Harap upload file HTML atau ZIP saja');
+            showStatus('error', 'Hanya file HTML/HTM atau ZIP yang diperbolehkan');
             selectedFile = null;
             fileName.textContent = 'Pilih file HTML atau ZIP';
+            fileUpload.value = '';
         }
     }
 });
@@ -109,11 +116,13 @@ deployBtn.addEventListener('click', async () => {
     // Validate inputs
     if (!websiteName.value.trim()) {
         showStatus('error', 'Silakan masukkan nama website');
+        websiteName.focus();
         return;
     }
     
     if (!selectedFile) {
         showStatus('error', 'Silakan pilih file untuk diupload');
+        fileUpload.click();
         return;
     }
     
@@ -129,41 +138,90 @@ newDeployBtn.addEventListener('click', () => {
     fileName.textContent = 'Pilih file HTML atau ZIP';
     selectedFile = null;
     statusMessage.classList.add('hidden');
+    checkQuota();
 });
 
 // Show status message
 function showStatus(type, message) {
     statusMessage.className = `status-message ${type}`;
     statusMessage.textContent = message;
+    statusMessage.classList.remove('hidden');
+    
+    // Auto hide after 5 seconds for info messages
+    if (type === 'info') {
+        setTimeout(() => {
+            statusMessage.classList.add('hidden');
+        }, 5000);
+    }
 }
 
-// Read file as base64
+// ==================== FIX: BACA FILE YANG BENAR ====================
 function readFileAsBase64(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = () => {
-            const base64 = reader.result.split(',')[1];
-            resolve(base64);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
+        
+        if (file.name.toLowerCase().endsWith('.html') || 
+            file.name.toLowerCase().endsWith('.htm')) {
+            
+            // Untuk HTML: BACA SEBAGAI TEXT
+            reader.onload = function(e) {
+                const text = e.target.result;
+                
+                // Convert text to base64
+                try {
+                    // Method yang paling compatible
+                    const base64 = btoa(unescape(encodeURIComponent(text)));
+                    resolve(base64);
+                } catch (error) {
+                    // Fallback method
+                    const base64 = btoa(text);
+                    resolve(base64);
+                }
+            };
+            
+            reader.onerror = reject;
+            reader.readAsText(file, 'UTF-8');
+            
+        } else {
+            // Untuk ZIP: BACA SEBAGAI BINARY
+            reader.onload = function(e) {
+                const base64 = e.target.result.split(',')[1];
+                resolve(base64);
+            };
+            
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        }
     });
 }
 
-// Deploy to Vercel via backend API
+// ==================== DEPLOY KE VERCEL ====================
 async function deployToVercel(name, file) {
     try {
         deployBtn.disabled = true;
         deployBtn.classList.add('loading');
         showStatus('info', 'Mempersiapkan deployment...');
         
-        // Read file
+        // Read file dengan method yang benar
         showStatus('info', 'Membaca file...');
         const fileData = await readFileAsBase64(file);
         
+        // Validasi: coba decode untuk pastikan HTML valid
+        if (file.name.toLowerCase().endsWith('.html') || 
+            file.name.toLowerCase().endsWith('.htm')) {
+            try {
+                const decoded = atob(fileData);
+                if (!decoded.includes('<') || !decoded.includes('>')) {
+                    showStatus('warning', 'Format file mungkin tidak sesuai HTML');
+                }
+            } catch (e) {
+                // Skip error
+            }
+        }
+        
         // Call backend API
         showStatus('info', 'Sedang deploy ke Vercel...');
-        const response = await fetch('/api/deploy', {
+        const response = await fetch(API_URL, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -191,7 +249,7 @@ async function deployToVercel(name, file) {
             throw new Error(data.error || 'Deploy gagal');
         }
         
-        // Success
+        // SUCCESS!
         deployBtn.disabled = false;
         deployBtn.classList.remove('loading');
         statusMessage.classList.add('hidden');
@@ -201,13 +259,20 @@ async function deployToVercel(name, file) {
             updateQuotaDisplay(data.remainingQuota);
         }
         
-        // Start cooldown
-        startCooldownTimer(300); // 5 menit
+        // Start cooldown (5 menit)
+        startCooldownTimer(300);
         
         // Show result
         deployedUrl.href = data.url;
         deployedUrl.textContent = data.url.replace('https://', '');
         resultCard.classList.remove('hidden');
+        
+        // Auto-open website setelah 1 detik
+        setTimeout(() => {
+            window.open(data.url, '_blank');
+        }, 1000);
+        
+        showStatus('success', 'Deploy berhasil! Website sedang dibuka...');
         
     } catch (error) {
         console.error('Deployment error:', error);
@@ -216,3 +281,67 @@ async function deployToVercel(name, file) {
         deployBtn.classList.remove('loading');
     }
 }
+
+// ==================== DRAG & DROP SUPPORT ====================
+document.addEventListener('DOMContentLoaded', function() {
+    // Cari upload zone atau buat di body
+    const uploadZone = document.querySelector('.upload-zone') || document.body;
+    
+    uploadZone.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        uploadZone.style.borderColor = '#00d9ff';
+        uploadZone.style.background = 'rgba(0, 217, 255, 0.05)';
+    });
+    
+    uploadZone.addEventListener('dragleave', function() {
+        uploadZone.style.borderColor = '';
+        uploadZone.style.background = '';
+    });
+    
+    uploadZone.addEventListener('drop', function(e) {
+        e.preventDefault();
+        uploadZone.style.borderColor = '';
+        uploadZone.style.background = '';
+        
+        if (e.dataTransfer.files.length) {
+            const file = e.dataTransfer.files[0];
+            
+            // Validate file type
+            const validExtensions = ['.html', '.htm', '.zip'];
+            const isValid = validExtensions.some(ext => 
+                file.name.toLowerCase().endsWith(ext)
+            );
+            
+            if (isValid) {
+                selectedFile = file;
+                fileName.textContent = file.name;
+                showStatus('info', `File "${file.name}" siap di-deploy`);
+            } else {
+                showStatus('error', 'Hanya file HTML atau ZIP yang diizinkan');
+            }
+        }
+    });
+});
+
+// ==================== INPUT VALIDATION ====================
+websiteName.addEventListener('blur', function() {
+    if (this.value && !/^[a-z0-9-]+$/.test(this.value)) {
+        showStatus('error', 'Nama hanya boleh huruf kecil, angka, dan tanda hubung');
+        this.focus();
+    }
+});
+
+// ==================== HELPERS ====================
+function bytesToSize(bytes) {
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    if (bytes === 0) return '0 Byte';
+    const i = parseInt(Math.floor(Math.log(bytes) / Math.log(1024)));
+    return Math.round(bytes / Math.pow(1024, i), 2) + ' ' + sizes[i];
+}
+
+// ==================== PAGE VISIBILITY ====================
+document.addEventListener('visibilitychange', function() {
+    if (!document.hidden) {
+        checkQuota();
+    }
+});
