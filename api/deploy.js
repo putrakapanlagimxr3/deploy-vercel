@@ -96,9 +96,7 @@ module.exports = async (req, res) => {
                     file: f.filepath,
                     data: f.content
                 })),
-                projectSettings: {
-                    framework: 'static'
-                },
+                projectSettings: {},
                 target: 'production'
             },
             {
