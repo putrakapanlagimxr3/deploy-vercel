@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vercel Deployer - Deploy Website Kamu</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loadingScreen">
+        <div class="loader"></div>
+        <div class="loading-text">Memuat...</div>
+    </div>
+
+    <!-- Main Content -->
+    <div id="mainContent">
+        <div class="container">
+            <!-- Header -->
+            <div class="header">
+                <svg class="logo-icon" width="40" height="40" viewBox="0 0 24 24" fill="none">
+                    <path d="M12 2L2 19.5h20L12 2z" fill="white"/>
+                </svg>
+                <h1>Vercel Deployer</h1>
+                <p class="subtitle">Deploy website kamu ke Vercel dengan mudah</p>
+            </div>
+
+            <!-- Upload Form -->
+            <div class="glass-card">
+                <!-- Quota Display -->
+                <div id="quotaDisplay" class="quota-display">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 6v6l4 2"/>
+                    </svg>
+                    <span id="quotaText">Mengecek quota...</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="websiteName">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="2" y1="12" x2="22" y2="12"/>
+                            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                        </svg>
+                        Nama Website
+                    </label>
+                    <input 
+                        type="text" 
+                        id="websiteName" 
+                        placeholder="website-keren-saya"
+                        pattern="[a-z0-9-]+"
+                        required
+                    >
+                    <small>Hanya huruf kecil, angka, dan tanda hubung. Akan menjadi: <strong>nama-kamu.vercel.app</strong></small>
+                </div>
+
+                <div class="form-group">
+                    <label for="fileUpload">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="17 8 12 3 7 8"/>
+                            <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                        Upload File
+                    </label>
+                    <div class="file-input-wrapper">
+                        <input 
+                            type="file" 
+                            id="fileUpload" 
+                            accept=".html,.zip"
+                            required
+                        >
+                        <div class="file-input-display">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
+                                <polyline points="13 2 13 9 20 9"/>
+                            </svg>
+                            <span id="fileName">Pilih file HTML atau ZIP</span>
+                        </div>
+                    </div>
+                    <small>Upload file HTML tunggal atau file ZIP yang berisi website kamu</small>
+                </div>
+
+                <button id="deployBtn" class="deploy-btn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <circle cx="12" cy="12" r="10"/>
+                        <polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                    Deploy ke Vercel
+                </button>
+            </div>
+
+            <!-- Status Messages -->
+            <div id="statusMessage" class="status-message hidden"></div>
+
+            <!-- Result Card -->
+            <div id="resultCard" class="glass-card result-card hidden">
+                <div class="success-icon">
+                    <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                        <polyline points="22 4 12 14.01 9 11.01"/>
+                    </svg>
+                </div>
+                <h2>Deploy Berhasil!</h2>
+                <p>Website kamu sekarang sudah online di:</p>
+                <a id="deployedUrl" href="#" target="_blank" class="deployed-url"></a>
+                <button id="newDeployBtn" class="secondary-btn">Deploy Lagi</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+    </html>
+    
