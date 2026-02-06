@@ -14,7 +14,7 @@ let selectedFile = null;
 let cooldownTimer = null;
 
 // API URL (ganti dengan URL API-mu)
-const API_URL = 'https://web-deploy-backend.vercel.app/api/deploy';
+const API_URL = '/api/deploy';
 // atau jika di domain yang sama: const API_URL = '/api/deploy';
 
 // Check quota on load
