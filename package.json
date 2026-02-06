@@ -1,9 +1,16 @@
 {
   "name": "web-deploy-api",
   "version": "1.0.0",
+  "description": "Backend API untuk deploy website ke Vercel",
+  "main": "api/deploy.js",
+  "scripts": {
+    "start": "node api/deploy.js"
+  },
   "dependencies": {
-    "@vercel/node": "^3.0.0",
-    "adm-zip": "^0.5.9",
+    "adm-zip": "^0.5.10",
     "axios": "^1.6.0"
-  }
+  },
+  "keywords": ["vercel", "deploy", "api"],
+  "author": "",
+  "license": "MIT"
 }
